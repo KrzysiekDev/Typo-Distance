@@ -4,14 +4,15 @@ SHIFT_COST = 3.0
 INSERTION_COST = 1.0
 DELETION_COST = 1.0
 SUBSTITUTION_COST = 1.0
+DIACRITICS_COST = -0.5
 
 qwertyKeyboardArray = [
-    ['`','1','2','3','4','5','6','7','8','9','0','-','='],
-    ['q','w','e','r','t','y','u','i','o','p','[',']','\\'],
-    ['a','s','d','f','g','h','j','k','l',';','\''],
-    ['z','x','c','v','b','n','m',',','.','/'],
+    ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\''],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
     ['', '', ' ', ' ', ' ', ' ', ' ', '', '']
-    ]
+]
 
 qwertyShiftedKeyboardArray = [
     ['~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '+'],
@@ -19,50 +20,117 @@ qwertyShiftedKeyboardArray = [
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?'],
     ['', '', ' ', ' ', ' ', ' ', ' ', '', '']
-    ]
+]
 
-layoutDict = {'QWERTY': (qwertyKeyboardArray, qwertyShiftedKeyboardArray)}
+qwertyPolishDiacriticsArray = [
+    ['', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', 'ę', '', '', '', '', '', 'ó', '', '', '', ''],
+    ['ą', 'ś', '', '', '', '', '', '', 'ł', '', ''],
+    ['ż', 'ź', 'ć', '', '', 'ń', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '']
+]
 
-# Sets the default keyboard to use to be QWERTY.
+qwertyShiftedPolishDiacriticsArray = [
+    ['', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', 'Ę', '', '', '', '', '', 'Ó', '', '', '', ''],
+    ['Ą', 'Ś', '', '', '', '', '', '', 'Ł', '', ''],
+    ['Ż', 'Ź', 'Ć', '', '', 'Ń', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '']
+]
+
+layoutDict = {'QWERTY': (qwertyKeyboardArray, qwertyShiftedKeyboardArray),
+              'QWERTY-pl': (qwertyKeyboardArray, qwertyShiftedKeyboardArray,
+                            qwertyPolishDiacriticsArray, qwertyShiftedPolishDiacriticsArray)}
+
+# Sets the default keyboard to use to be QWERTY(-pl).
 keyboardArray = qwertyKeyboardArray
 shiftedKeyboardArray = qwertyShiftedKeyboardArray
+diacriticsKeyboardArray = qwertyPolishDiacriticsArray
+diacriticsShiftedKeyboardArray = qwertyShiftedPolishDiacriticsArray
+
 
 class InsertionAction:
     def __init__(self, i, c):
         self.i = i
         self.c = c
+
     def cost(self, s):
         return insertionCost(s, self.i, self.c)
+
     def perform(self, s):
         return s[:self.i] + self.c + s[self.i:]
+
 
 class SubstitutionAction:
     def __init__(self, i, c):
         self.i = i
         self.c = c
+
     def cost(self, s):
         return substitutionCost(s, self.i, self.c)
+
     def perform(self, s):
         return s[:self.i] + self.c + s[(self.i + 1):]
+
 
 class DeletionAction:
     def __init__(self, i):
         self.i = i
+
     def cost(self, s):
         return deletionCost(s, self.i)
+
     def perform(self, s):
         return s[:self.i] + s[(self.i + 1):]
+
 
 # Returns the keyboard layout c "lives in"; for instance, if c is A, this will
 # return the shifted keyboard array, but if it is a, it will return the regular
 # keyboard array.  Raises a ValueError if character is in neither array
 def arrayForChar(c):
-    if (True in [c in r for r in keyboardArray]):
+    if True in [c in r for r in keyboardArray]:
         return keyboardArray
-    elif (True in [c in r for r in shiftedKeyboardArray]):
+    elif True in [c in r for r in shiftedKeyboardArray]:
         return shiftedKeyboardArray
+    elif True in [c in r for r in diacriticsKeyboardArray]:
+        return diacriticsKeyboardArray
+    elif True in [c in r for r in diacriticsShiftedKeyboardArray]:
+        return diacriticsShiftedKeyboardArray
     else:
         raise ValueError(c + " not found in any keyboard layouts")
+
+
+def isShiftedChar(c):
+    set1 = {ch for line in shiftedKeyboardArray for ch in line}
+    set2 = {ch for line in diacriticsShiftedKeyboardArray for ch in line}
+    if c in set1 or c in set2:
+        return True
+    else:
+        return False
+
+
+def isDiacriticsChar(c):
+    set1 = {ch for line in diacriticsKeyboardArray for ch in line}
+    set2 = {ch for line in diacriticsShiftedKeyboardArray for ch in line}
+    if c in set1 or c in set2:
+        return True
+    else:
+        return False
+
+
+def isChangedToShiftedKeybord(c1, c2):
+    if isShiftedChar(c1) and not isShiftedChar(c2) or not isShiftedChar(c1) and isShiftedChar(c2):
+        return True
+    else:
+        return False
+
+
+def isChangedToDiacriticsKeybord(c1, c2):
+    if isDiacriticsChar(c1) and not isDiacriticsChar(c2) or not isDiacriticsChar(c1) and isDiacriticsChar(c2):
+        return True
+    else:
+        return False
+
 
 # Finds a 2-tuple representing c's position on the given keyboard array.  If
 # the character is not in the given array, throws a ValueError
@@ -73,56 +141,65 @@ def getCharacterCoord(c, array):
         if c in r:
             row = array.index(r)
             column = r.index(c)
-            return (row, column)
+            return row, column
     raise ValueError(c + " not found in given keyboard layout")
+
 
 # Finds the Euclidean distance between two characters, regardless of whether
 # they're shifted or not.
 def euclideanKeyboardDistance(c1, c2):
     coord1 = getCharacterCoord(c1, arrayForChar(c1))
     coord2 = getCharacterCoord(c2, arrayForChar(c2))
-    return ((coord1[0] - coord2[0])**2 + (coord1[1] - coord2[1])**2)**(0.5)
+    return ((coord1[0] - coord2[0]) ** 2 + (coord1[1] - coord2[1]) ** 2) ** (0.5)
+
 
 # The cost of inserting c at position i in string s
 def insertionCost(s, i, c):
     if not s or i >= len(s):
         return INSERTION_COST
     cost = INSERTION_COST
-    if arrayForChar(s[i]) != arrayForChar(c):
+    if isChangedToShiftedKeybord(s[i], c):
         # We weren't holding down the shift key when we were typing the original
         # string, but started holding it down while inserting this character, or
         # vice versa.  Either way, this action should have a higher cost.
         cost += SHIFT_COST
+    if isChangedToDiacriticsKeybord(s[i], c):
+        cost += DIACRITICS_COST
     cost += euclideanKeyboardDistance(s[i], c)
     return cost
+
 
 # The cost of omitting the character at position i in string s
 def deletionCost(s, i):
     return DELETION_COST
+
 
 # The cost of substituting c at position i in string s
 def substitutionCost(s, i, c):
     cost = SUBSTITUTION_COST
     if len(s) == 0 or i >= len(s):
         return INSERTION_COST
-    if arrayForChar(s[i]) != arrayForChar(c):
+    if isChangedToShiftedKeybord(s[i], c):
         # We weren't holding down the shift key when we were typing the original
         # string, but started holding it down while inserting this character, or
         # vice versa.  Either way, this action should have a higher cost.
         cost += SHIFT_COST
+    if isChangedToDiacriticsKeybord(s[i], c):
+        cost += DIACRITICS_COST
     cost += euclideanKeyboardDistance(s[i], c)
     return cost
 
+
 # Finds the typo distance (a floating point number) between two strings, based
 # on the canonical Levenshtein distance algorithm.
-def typoDistance(s, t, layout='QWERTY'):
-    if layout in layoutDict:
-        keyboardArray, shiftedKeyboardArray = layoutDict[layout]
-    else:
-        raise KeyError(layout + " keyboard layout not supported")
-    
+def typoDistance(s, t, layout='QWERTY-pl'):
+    # if layout in layoutDict:
+    #    keyboardArray, shiftedKeyboardArray = layoutDict[layout]
+    # else:
+    #    raise KeyError(layout + " keyboard layout not supported")
+
     # A multidimensional array of 0s with len(s) rows and len(t) columns.
-    d = [[0]*(len(t) + 1) for i in range(len(s) + 1)]
+    d = [[0] * (len(t) + 1) for i in range(len(s) + 1)]
 
     for i in range(len(s) + 1):
         d[i][0] = sum([deletionCost(s, j - 1) for j in range(i)])
@@ -148,6 +225,7 @@ def typoDistance(s, t, layout='QWERTY'):
 
     return d[len(s)][len(t)]
 
+
 # Returns a list of the possible actions than can be performed on a string s.
 def getPossibleActions(s, layout='QWERTY'):
     if layout in layoutDict:
@@ -161,6 +239,7 @@ def getPossibleActions(s, layout='QWERTY'):
             actions.append(SubstitutionAction(i, key))
             actions.append(InsertionAction(i, key))
     return actions
+
 
 # Returns a generator which generates all possible typos that are less than
 # or equal to the given maximum typo distance d from the start phrase s.  Based
@@ -179,7 +258,7 @@ def typoGenerator(s, d, layout='QWERTY'):
     # the last action in c versus some other action.
     changedString = s
 
-    while(True):
+    while (True):
         if t == 0:
             # No actions
             yield s
@@ -203,7 +282,7 @@ def typoGenerator(s, d, layout='QWERTY'):
             i = 1
             brokeOut = False
             # Let's try replacing the last action with a new candidate
-            while(c[t - 1] > c[t] + i):
+            while (c[t - 1] > c[t] + i):
                 if r >= (actions[c[t] + i].cost(changedString) - actions[c[t]].cost(changedString)):
                     # Our new candidate is cheap enough; use it.
                     c[t] += i
@@ -216,7 +295,7 @@ def typoGenerator(s, d, layout='QWERTY'):
                 else:
                     # The candidate was too expensive; move onto the next
                     i += 1
-                    
+
             if not brokeOut:
                 # Let's try removing an action
                 r += actions[c[t]].cost(changedString)
@@ -227,4 +306,5 @@ def typoGenerator(s, d, layout='QWERTY'):
                 t -= 1
             else:
                 break
-        
+
+
